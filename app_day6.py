@@ -17,6 +17,18 @@ if json_file.exists():
 st.set_page_config(page_title="Course Manager", layout="centered")
 st.title("Course Manager App")
 
+if "logged_in" not in st.session_state:
+    st.session_state["logged_in"]==False
+    
+if "user" not in st.session_state:
+    st.session_state["user"]==None
+
+if "page" not in st.session_state:
+    st.session_state["page"]="login"
+
+if "role" not in st.session_state:
+    st.session_state("role")==None
+
 users= [
     {"id":"1",
      "email":" admin@school.edu",
@@ -24,6 +36,20 @@ users= [
      "role":"admin",
      "registered_at":",,,"}
 ]
+
+if st.session_state["role"]== "Admin":
+    st.markdown("This is the Admin UI-Dashboard")
+
+elif st.session_state["role"]== "Instructor":
+    st.markdown("This is the instructor UI-Dashboard")
+
+    if st.button("Log Out"):
+        with st.spinner("logging out..."):
+            time.sleep(4)
+            st.session_state["logged_in"]=False
+            st.session_state["user"]=None
+            st.session_state["role"]=None
+            st.rerun()
 
 st.subheader("Log In")
 with st.container(border=True):
@@ -43,6 +69,9 @@ with st.container(border=True):
             
             if found_user:
                 st.success(f"Welcome back, {found_user['email']}!")
+                st.session_state["logged_in"]==True
+                st.session_state["user"]=found_user
+                st.session_state["role"]=found_user["role"]
                 time.sleep(2)
                 st.rerun()
             else:
@@ -72,3 +101,10 @@ with st.container(border=True):
 
 st.write("---")
 st.dataframe(users)
+
+with st.sidebar:
+    if "logged_in" in st.session_state and st.session_state["logged_in"] != None:
+        user=st.session_state["user"]
+        st.markdown(f"Welcome {user['full_name']}")
+    else:
+        st.markdown("Welcome! - Login")

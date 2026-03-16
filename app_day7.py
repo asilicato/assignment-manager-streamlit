@@ -67,4 +67,4 @@ if st.session_state["page"]=="home":
 
 
 elif st.session_state["page"]=="orders":
-    st.markdown("Under Construction.....")
+    st.markdown("Under Construction.")

@@ -5,7 +5,6 @@ from datetime import datetime
 import uuid
 import time
 
-st.set_page_config(page_title="Course Manager", layout="centered")
 
 json_file = Path("users.json")
 users = []
@@ -59,8 +58,8 @@ elif st.session_state["role"]== "Instructor":
 
 
     
-    if st.button("Log out", type="primary", use_container_width= True):
-        with st.spinner("loggin out..."):
+        if st.button("Log out", type="primary", use_container_width= True):
+         with st.spinner("loggin out..."):
             st.session_state["logged_in"] = False
             st.session_state["user"] = None
             st.session_state["role"] = None
@@ -126,9 +125,6 @@ with st.sidebar:
     else:
         st.markdown("Welcome! - Login")
 
-        if btn_save:
-            with st.spinner("Saving the Assignment..."):
-                time.sleep(5) 
-                if not st.title:
+    
                     
                 

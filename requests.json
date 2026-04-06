@@ -7,6 +7,7 @@
         "submitted_timestamp": "2026-03-19 08:30:00",
         "excuse_type": "Medical",
         "explanation": "I have a scheduled doctor's appointment that I cannot reschedule.",
-        "instructor_note": ""
+        "instructor_note": "",
+        "request_id": "000001"
     }
 ]

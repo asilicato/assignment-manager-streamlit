@@ -2,13 +2,19 @@ import streamlit as st
 import json
 from pathlib import Path
 from datetime import datetime, date
+import pandas as pd
 
-st.set_page_config(page_title="Excused Absence App", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(
+    page_title="Excused Absence App",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
 json_path_requests = Path("requests.json")
 
 default_requests = [
-    {   "request_id":"01121212",
+    {
+        "request_id": "01121212",
         "status": "Pending",
         "course_id": "011101",
         "student_email": "jsmith@university.edu",
@@ -20,7 +26,7 @@ default_requests = [
     }
 ]
 
-#Loading the data
+# Load data
 if json_path_requests.exists():
     with open(json_path_requests, "r", encoding="utf-8") as f:
         requests = json.load(f)
@@ -29,128 +35,190 @@ else:
     with open(json_path_requests, "w", encoding="utf-8") as f:
         json.dump(requests, f, indent=4)
 
+# Fix old records that are missing fields
+updated = False
+for i, request in enumerate(requests):
+    if "request_id" not in request:
+        request["request_id"] = f"{i+1:06d}"
+        updated = True
+    if "instructor_note" not in request:
+        request["instructor_note"] = ""
+        updated = True
 
+if updated:
+    with open(json_path_requests, "w", encoding="utf-8") as f:
+        json.dump(requests, f, indent=4)
+
+# Session state
 if "page" not in st.session_state:
     st.session_state["page"] = "dashboard"
 
 if "selected_request" not in st.session_state:
     st.session_state["selected_request"] = None
 
-#Building the Sidebar
+# Sidebar
 st.sidebar.title("Navigation")
 
-if st.sidebar.button("Excused Absence Dashboard"):
+if st.sidebar.button("Dashboard", use_container_width=True):
     st.session_state["page"] = "dashboard"
 
-if st.sidebar.button("Excused Absence Request"):
+if st.sidebar.button("Request", use_container_width=True):
     st.session_state["page"] = "request"
 
-
-#Dashboard 
+# Dashboard Page
 if st.session_state["page"] == "dashboard":
-    st.title("Excused Absence Dashboard")
+    st.title("Excused Absences")
 
-    col1, col2 = st.columns([3, 1])
+    total_requests = len(requests)
+    pending_requests = sum(1 for r in requests if r["status"] == "Pending")
 
-    with col1:
-        if len(requests) > 0:
+    spacer, metric1, metric2 = st.columns([5, 1.5, 1.5])
+
+    with metric1:
+        st.metric("Count", total_requests)
+
+    with metric2:
+        st.metric("Pending", pending_requests)
+
+    st.markdown("---")
+
+    filter_col1, filter_col2 = st.columns([3, 1.2])
+
+    with filter_col1:
+        search_email = st.text_input("Search by student Email")
+
+    with filter_col2:
+        status_filter = st.selectbox(
+            "Status",
+            ["All", "Pending", "Approved", "Cancelled"]
+        )
+
+    filtered_requests = requests.copy()
+
+    if search_email:
+        filtered_requests = [
+            r for r in filtered_requests
+            if search_email.lower() in r["student_email"].lower()
+        ]
+
+    if status_filter != "All":
+        filtered_requests = [
+            r for r in filtered_requests
+            if r["status"] == status_filter
+        ]
+
+    left_col, right_col = st.columns([3.2, 1.4])
+
+    with left_col:
+        if filtered_requests:
+            df = pd.DataFrame(filtered_requests)
+
+            display_df = df[
+                [
+                    "request_id",
+                    "status",
+                    "course_id",
+                    "student_email",
+                    "absence_date",
+                    "submitted_timestamp",
+                    "excuse_type",
+                    "explanation"
+                ]
+            ]
+
             event = st.dataframe(
-                requests,
+                display_df,
                 use_container_width=True,
+                hide_index=True,
                 on_select="rerun",
                 selection_mode="single-row"
             )
 
             if event.selection.rows:
                 selected_index = event.selection.rows[0]
-                st.session_state["selected_request"] = requests[selected_index]
+                st.session_state["selected_request"] = filtered_requests[selected_index]
         else:
-            st.warning("No requests have been submitted yet.")
+            st.info("No matching requests found.")
 
-    with col2:
-        st.metric("Total Requests", len(requests))
-
-    if st.session_state["selected_request"] is not None:
-        selected_request = st.session_state["selected_request"]
-
-        st.markdown("---")
+    with right_col:
         st.subheader("Selected Request Details")
 
-        st.write(f"**Status:** {selected_request['status']}")
-        st.write(f"**Course ID:** {selected_request['course_id']}")
-        st.write(f"**Student Email:** {selected_request['student_email']}")
-        st.write(f"**Absence Date:** {selected_request['absence_date']}")
-        st.write(f"**Submitted Timestamp:** {selected_request['submitted_timestamp']}")
-        st.write(f"**Excuse Type:** {selected_request['excuse_type']}")
-        st.write(f"**Student Explanation / Reason:** {selected_request['explanation']}")
-        st.write(f"**Instructor Note:** {selected_request['instructor_note']}")
+        selected_request = st.session_state["selected_request"]
 
-        st.markdown("---")
-        st.subheader("Update Request")
+        if selected_request is not None:
+            st.markdown(f"**{selected_request['status']}**")
+            st.write(selected_request["student_email"])
+            st.write(selected_request["course_id"])
+            st.write(selected_request["absence_date"])
+            st.write(selected_request["submitted_timestamp"])
+            st.write(selected_request["excuse_type"])
+            st.write(selected_request["explanation"])
 
-        new_status = st.selectbox(
-            "Update Status",
-            ["Pending", "Cancelled", "Approved"],
-            index=["Pending", "Cancelled", "Approved"].index(selected_request["status"]),
-            key="dashboard_status_select"
-        )
+            st.markdown("### Update Request")
 
-        new_note = st.text_area(
-            "Instructor Note",
-            value=selected_request["instructor_note"],
-            key="dashboard_instructor_note_textarea"
-        )
+            status_options = ["Pending", "Approved", "Cancelled"]
+            current_status_index = status_options.index(selected_request["status"])
 
-        col_update1, col_update2 = st.columns(2)
+            new_status = st.selectbox(
+                "Update Status",
+                status_options,
+                index=current_status_index,
+                key="dashboard_status_select"
+            )
 
-        with col_update1:
-            if st.button("Save Update", key="dashboard_save_update_btn", use_container_width=True):
-                for request in requests:
-                    if (
-                        request["student_email"] == selected_request["student_email"]
-                        and request["submitted_timestamp"] == selected_request["submitted_timestamp"]
-                    ):
-                        request["status"] = new_status
-                        request["instructor_note"] = new_note
-                        break
+            new_note = st.text_area(
+                "Instructor Note",
+                value=selected_request["instructor_note"],
+                key="dashboard_instructor_note_textarea"
+            )
 
-                with open(json_path_requests, "w", encoding="utf-8") as f:
-                    json.dump(requests, f, indent=4)
+            btn1, btn2 = st.columns(2)
 
-                st.success("Request updated successfully.")
-                st.session_state["selected_request"] = None
-                st.rerun()
+            with btn1:
+                if st.button("Save Update", use_container_width=True):
+                    for request in requests:
+                        if request["request_id"] == selected_request["request_id"]:
+                            request["status"] = new_status
+                            request["instructor_note"] = new_note
+                            break
 
-        with col_update2:
-            if st.button("Clear Selection", key="dashboard_clear_selection_btn", use_container_width=True):
-                st.session_state["selected_request"] = None
-                st.rerun()
+                    with open(json_path_requests, "w", encoding="utf-8") as f:
+                        json.dump(requests, f, indent=4)
 
-# Request Form Page
+                    st.success("Request updated successfully.")
+                    st.session_state["selected_request"] = None
+                    st.rerun()
+
+            with btn2:
+                if st.button("Clear Selection", use_container_width=True):
+                    st.session_state["selected_request"] = None
+                    st.rerun()
+
+        else:
+            st.info("Select a row from the table to view details.")
+
+# Request Page
 elif st.session_state["page"] == "request":
     st.title("Excused Absence Request")
 
     with st.form("excused_absence_form"):
-        student_email = st.text_input("Student Email", key="request_student_email_input")
-        absence_date = st.date_input("Absence Date", value=date.today(), key="request_absence_date_input")
+        student_email = st.text_input("Student Email")
+        absence_date = st.date_input("Absence Date", value=date.today())
         excuse_type = st.selectbox(
             "Excuse Type",
-            ["Medical", "University Competitions", "Other"],
-            key="request_excuse_type_select"
+            ["Medical", "University Competitions", "Other"]
         )
-        explanation = st.text_area("Student Explanation / Reason", key="request_explanation_textarea")
+        explanation = st.text_area("Student Explanation / Reason")
 
         submit_request = st.form_submit_button("Submit Request")
 
         if submit_request:
-            date_str = absence_date.strftime("%Y-%m-%d")
-
             new_request = {
                 "request_id": datetime.now().strftime("%H%M%S%f"),
                 "status": "Pending",
                 "course_id": "011101",
                 "student_email": student_email,
-                "absence_date": date_str,
+                "absence_date": absence_date.strftime("%Y-%m-%d"),
                 "submitted_timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "excuse_type": excuse_type,
                 "explanation": explanation,
@@ -165,5 +233,4 @@ elif st.session_state["page"] == "request":
             st.success("Excused absence request submitted successfully.")
             st.session_state["page"] = "dashboard"
             st.rerun()
-
 
